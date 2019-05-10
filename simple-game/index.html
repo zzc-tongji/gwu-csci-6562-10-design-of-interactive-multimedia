@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Pinball</title>
+  <meta name="viewport" content="initial-scale=1, maximum-scale=1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <script type="text/javascript" src="js/react.min.js"></script>
+  <script type="text/javascript" src="js/react-dom.min.js"></script>
+  <script type="text/javascript" src="js/browser.min.js"></script>
+  <link href="./css/index.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+<script type="text/babel">
+
+  const App = React.createClass({
+
+    // React method
+
+    getInitialState: function () {
+      return {
+        page: 0,
+        isBegin: false,
+        isGameOver: false,
+      };
+    },
+
+    componentDidUpdate: function () {
+      if (this.state.page === 1) {
+        this.startGame();
+      } else if (this.state.page === -1) {
+        document.getElementById('result').innerHTML = 'You score is: ' + this.score;
+        this.isBegin = false;
+        this.isGameOver = false;
+      }
+    },
+
+    render: function () {
+      switch (this.state.page) {
+        case -1:
+          // game over
+          this.initData();
+          return (
+            <div className="game-over">
+              <div id="result" className="text">
+
+              </div>
+              <div className="button" onClick={this.play}>
+                <div className="button-text">
+                  Click here to restart.
+                </div>
+              </div>
+            </div>
+          );
+        case 0:
+          // welcome
+          this.initData();
+          return (
+            <div className="welcome">
+              <div className="text">
+                Control board by moving mouse / sliding finger.
+              </div>
+              <div className="button" onClick={this.play}>
+                <div className="button-text">
+                  Click here to start.
+                </div>
+              </div>
+            </div>
+          );
+        case 1:
+          // play
+          return (
+            <div>
+              <img id="ball" className="image" src="./image/ball.png" />
+              <img id="board" className="image" src="./image/board.png" />
+              <audio id="ding">
+                <source src="./audio/ding.mp3" type="audio/mp3" />
+              </audio>
+              <audio id="end">
+                <source src="./audio/end.mp3" type="audio/mp3" />
+              </audio>
+              <audio id="tock">
+                <source src="./audio/tock.mp3" type="audio/mp3" />
+              </audio>
+              <div id="score" width={this.app.width}>Score: 0</div>
+              <canvas
+                id="canvas"
+                width={this.app.width}
+                height={this.app.height}
+                onTouchMove={this.handleTouchMove}
+                onMouseMove={this.handleMouseMove}
+              />
+            </div>
+          );
+        default:
+          return null;
+      }
+    },
+
+    // data
+
+    app: {
+      width: 900,
+      height: 1500
+    },
+    audio: {
+      dingDom: null,
+      endDom: null,
+      tockDom: null
+    },
+    ball: {
+      center: {
+        x: 100,
+        y: 100
+      },
+      imageDom: null,
+      radius: 10,
+      speed: {
+        x: 10,
+        y: 10
+      },
+      speedDelta: 2
+    },
+    board: {
+      imageDom: null,
+      position: {
+        x: 20,
+        y: 500
+      },
+      size: {
+        height: 10,
+        width: 80
+      },
+    },
+    canvasContext: null,
+    isBegin: false,
+    isGameOver: false,
+    refreshIntervalMs: 50,
+    score: 0,
+    scoreDOM: null,
+    timer: null,
+
+    // method
+
+    initData: function () {
+      this.app.width = document.documentElement.clientWidth - 50;
+      this.app.height = document.documentElement.clientHeight - 50;
+      this.ball.center.x = 100;
+      this.ball.center.y = 100;
+      this.ball.radius = parseInt(this.app.width / 30, 10);
+      this.ball.speed.x = 10;
+      this.ball.speed.y = 10;
+      this.board.position.x = parseInt((this.app.width - this.board.size.width) / 2, 10);
+      this.board.position.y = this.app.height - this.board.size.height * 8;
+      this.board.size.height = this.ball.radius;
+      this.board.size.width = this.ball.radius * 5;
+    },
+
+    play: function () {
+      this.score = 0;
+      this.setState({page: 1});
+    },
+
+    draw: function () {
+      if (this.isGameOver) {
+        this.audio.endDom.play();
+        if (this.timer != null) {
+          clearInterval(this.timer);
+          this.timer = null;
+        }
+        setTimeout(
+          () => {
+            this.setState({page: -1});
+          },
+          2600
+        );
+        return;
+      }
+      // clean
+      this.canvasContext.fillStyle = '#FFFFFF';
+      this.canvasContext.fillRect(0, 0, this.app.width, this.app.height);
+      // draw
+      this.drawBall();
+      this.drawBoard();
+      // update score
+      this.scoreDOM.innerHTML = 'Score: ' + this.score;
+      // move ball
+      this.ball.center.x += this.ball.speed.x;
+      this.ball.center.y += this.ball.speed.y;
+      if (this.ball.center.x - this.ball.radius < 0) {
+        // hit left boundary
+        this.audio.tockDom.play();
+        this.ball.center.x = this.ball.radius;
+        this.ball.speed.x = -this.ball.speed.x;
+      }
+      if (this.ball.center.x + this.ball.radius > this.app.width) {
+        // hit right boundary
+        this.audio.tockDom.play();
+        this.ball.center.x = this.app.width - this.ball.radius;
+        this.ball.speed.x = -this.ball.speed.x;
+      }
+      if (this.ball.center.y - this.ball.radius < 0) {
+        // hit top boundary
+        this.audio.tockDom.play();
+        this.ball.center.y = this.ball.radius;
+        this.ball.speed.y = -this.ball.speed.y;
+      }
+      if (this.ball.center.y + this.ball.radius > this.app.height) {
+        // hit bottom boundary (not available)
+        this.audio.tockDom.play();
+        this.ball.center.y = this.app.height - this.ball.radius;
+        this.ball.speed.y = -this.ball.speed.y;
+      }
+      if (this.ball.center.y + this.ball.radius > this.board.position.y) {
+        if (this.ball.center.x >= this.board.position.x && this.ball.center.x <= this.board.position.x + this.board.size.width) {
+          // hit board
+          this.audio.dingDom.play();
+          this.score += this.ball.speed.y;
+          // accelerate
+          if (this.ball.speed.x > 0) {
+            this.ball.speed.x += this.ball.speedDelta
+          } else {
+            this.ball.speed.x -= this.ball.speedDelta
+          }
+          if (this.ball.speed.y > 0) {
+            this.ball.speed.y += this.ball.speedDelta
+          } else {
+            this.ball.speed.y -= this.ball.speedDelta
+          }
+          this.ball.center.y = this.board.position.y - this.ball.radius;
+          this.ball.speed.y = -this.ball.speed.y;
+        } else {
+          // miss board
+          this.isGameOver = true;
+        }
+      }
+    },
+
+    drawBall: function () {
+      if (this.ball.imageDom != null) {
+        this.canvasContext.drawImage(this.ball.imageDom, this.ball.center.x - this.ball.radius, this.ball.center.y - this.ball.radius,
+          2 * this.ball.radius, 2 * this.ball.radius);
+      }
+    },
+
+    drawBoard: function () {
+      if (this.board.imageDom != null) {
+        this.canvasContext.drawImage(this.board.imageDom, this.board.position.x, this.board.position.y, this.board.size.width, this.board.size.height);
+      }
+    },
+
+    handleTouchMove: function (event) {
+      this.board.position.x = event.targetTouches[0].clientX - parseInt(this.board.size.width / 2, 10);
+      if (this.board.position.x < 0) {
+        this.board.position.x = 0;
+      }
+      if (this.board.position.x + this.board.size.width > this.app.width) {
+        this.board.position.x = this.app.width - this.board.size.width;
+      }
+    },
+
+    handleMouseMove: function (event) {
+      this.board.position.x = event.clientX - parseInt(this.board.size.width / 2, 10);
+      if (this.board.position.x < 0) {
+        this.board.position.x = 0;
+      }
+      if (this.board.position.x + this.board.size.width > this.app.width) {
+        this.board.position.x = this.app.width - this.board.size.width;
+      }
+    },
+
+    startGame: function () {
+      if (!this.isBegin) {
+        this.canvasContext = document.getElementById('canvas').getContext('2d');
+        this.drawBall();
+        this.drawBoard();
+        this.audio.endDom = document.getElementById('end');
+        this.audio.tockDom = document.getElementById('tock');
+        this.audio.dingDom = document.getElementById('ding');
+        this.ball.imageDom = document.getElementById('ball');
+        this.board.imageDom = document.getElementById('board');
+        this.isBegin = true;
+        this.scoreDOM = document.getElementById('score');
+        this.timer = setInterval(this.draw, this.refreshIntervalMs);
+      }
+    },
+  });
+
+  ReactDOM.render(
+    <App />,
+    document.body
+  );
+
+</script>
+</body>
+</html>
